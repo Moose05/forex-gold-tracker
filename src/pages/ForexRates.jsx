@@ -1,69 +1,114 @@
-import { useState, useEffect } from "react";
-import { fetchRates } from "../services/forexAPI";
-import useInterval from "../hooks/useInterval";
+import React, { useEffect, useState } from "react";
+import Card from "../components/Card";
+import Button from "../components/Button";
 
-function ForexRates() {
+const ForexRates = () => {
   const [rates, setRates] = useState({});
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
-  const getRates = async (isManual = false) => {
-    if (isManual) setRefreshing(true);
-    else setLoading(true);
-
-    const data = await fetchRates();
-    if (data) {
-      setRates(data);
-      setLastUpdated(new Date().toLocaleTimeString());
+  const fetchRates = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        "https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,AUD,CAD,NZD,CHF"
+      );
+      const data = await response.json();
+      if (data.success === false) {
+        throw new Error(data.error?.info || "Failed to fetch rates");
+      }
+      setRates(data.rates || {});
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-    isManual ? setRefreshing(false) : setLoading(false);
   };
 
+  // Fetch initially and auto-refresh every 10s
   useEffect(() => {
-    getRates();
+    fetchRates();
+    const interval = setInterval(fetchRates, 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  useInterval(() => {
-    getRates();
-  }, 10000);
+  // Filtering
+  const filteredRates = Object.entries(rates).filter(([symbol]) =>
+    symbol.includes(searchTerm.toUpperCase())
+  );
+
+  // Pagination
+  const totalPages = Math.ceil(filteredRates.length / itemsPerPage);
+  const paginatedRates = filteredRates.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to page 1 if search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Forex & Gold Tracker</h1>
-        <button
-          onClick={() => getRates(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-        >
-          {refreshing ? (
-            <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-          ) : (
-            "🔄 Refresh Rates"
-          )}
-        </button>
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">💱 Forex Rates (USD Base)</h1>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-4 items-center justify-between">
+        <input
+          type="text"
+          placeholder="Search currency (e.g. EUR, JPY)"
+          className="border border-gray-300 dark:border-gray-600 rounded p-2 w-full md:w-1/2 dark:bg-gray-800 dark:text-white"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+        <Button variant="primary" onClick={fetchRates}>
+          🔄 Refresh Rates
+        </Button>
       </div>
 
-      <p className="text-sm text-gray-600 mb-4">Last updated: {lastUpdated}</p>
+      {loading && <p className="text-blue-500 text-center">⏳ Loading rates...</p>}
+      {error && <p className="text-red-500 text-center">❌ {error}</p>}
 
-      {loading ? (
-        <p>Loading exchange rates...</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {Object.entries(rates).map(([currency, rate]) => (
-            <div
-              key={currency}
-              className="bg-white p-4 rounded shadow-md border border-gray-200"
-            >
-              <h2 className="text-lg font-semibold">{currency}/USD</h2>
-              <p className="text-xl">{rate.toFixed(4)}</p>
-            </div>
-          ))}
+      {!loading && !error && paginatedRates.length === 0 && (
+        <p className="text-gray-500 text-center">No currencies matched your search.</p>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {paginatedRates.map(([symbol, rate]) => (
+          <Card key={symbol} title={symbol}>
+            <p className="text-xl font-semibold">{rate}</p>
+          </Card>
+        ))}
+      </div>
+
+      {!loading && !error && paginatedRates.length > 0 && (
+        <div className="flex justify-center mt-6 items-center gap-4">
+          <Button
+            variant="secondary"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            ◀ Prev
+          </Button>
+          <span className="text-gray-700 dark:text-gray-300">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="secondary"
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            Next ▶
+          </Button>
         </div>
       )}
     </div>
   );
-}
+};
 
 export default ForexRates;
