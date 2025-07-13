@@ -21,10 +21,10 @@ const Navbar = () => {
                 
                 <div className="flex items-center gap-4">
                     <Link to="/" className="text-gray-700 dark:text-gray-200 hover:underline">
-                    Rates
+                    Trading Rates
                     </Link>
                     <Link to="/tasks" className="text-gray-700 dark:text-gray-200 hover:underline">
-                    Tasks
+                    Journal
                     </Link>
                     <Link to="/about" className="text-gray-700 dark:text-gray-200 hover:underline">
                     About
