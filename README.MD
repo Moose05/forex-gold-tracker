@@ -17,3 +17,4 @@ A responsive React + Tailwind CSS application that:
 ```bash
 npm install
 npm run dev
+
